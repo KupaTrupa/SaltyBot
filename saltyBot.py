@@ -1,13 +1,24 @@
-import discord
+#! /usr/bin/env python3
+# coding: utf-8
+
 import asyncio
 import datetime
 import re
+import json
+import discord
 
 class BadCommandSyntaxError(Exception):
     pass
 
+
 class IncorrectArgumentTypeError(Exception):
     pass
+
+
+config_file = open('config.json', 'r+')
+config_json = json.load(config_file)
+
+print(json.dumps(config_json))
 
 client = discord.Client()
 
@@ -24,14 +35,15 @@ def get_role_index(server, role_name):
 async def kick_member(message):
     try:
         print(message.content)
-        args_match = re.match(r"!kick ([\w]+#[0-9]{4}|\"[\w ]+#[0-9]{4}\")( *[0-9]*)$", message.content, re.UNICODE)
+        args_match = re.match(r"!kick ([\w]+#[0-9]{4}|\"[\w ]+#[0-9]{4}\")( *[0-9]*)$",
+                              message.content, re.UNICODE)
 
         if not args_match:
             raise BadCommandSyntaxError("Bad command syntax !")
 
         print(str(args_match.groups()))
 
-        if(len(args_match.group(2)) == 0):
+        if len(args_match.group(2)) == 0:
             kick_duration = 5
         else:
             try:
@@ -49,22 +61,29 @@ async def kick_member(message):
         role_index = get_role_index(message.channel.server, role_name)
 
         if role_index is None:
-            await client.create_role(message.channel.server, name=role_name, colour=discord.Colour.dark_red())
+            await client.create_role(message.channel.server, name=role_name,
+                                     colour=discord.Colour.dark_red())
 
         # On ajoute le rôle de kické du chan au batar
 
         await client.add_roles(member_to_kick, message.channel.server.roles[role_index])
-        await client.send_message(message.channel, member_name + " a été kick du salon pour " + str(kick_duration) + " minute(s).")
-        print("[" + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "] Kick : " + member_name + " (" + str(kick_duration) + " minute(s))")
+        await client.send_message(message.channel, member_name + " a été kick du salon pour " +
+                                  str(kick_duration) + " minute(s).")
+        
+        print("[" + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "] Kick : " +
+              member_name + " (" + str(kick_duration) + " minute(s))")
 
         # Attente fin kick & on enlève le rôle au kické
 
         await asyncio.sleep(60 * kick_duration)
-        await client.remove_roles(member_to_kick, message.channel.server.roles[get_role_index(message.channel.server, role_name)])
+
+        role_index = get_role_index(message.channel.server, role_name)
+        await client.remove_roles(member_to_kick, message.channel.server.roles[role_index])
     except BadCommandSyntaxError:
-            await client.send_message(message.channel, "Syntaxe incorrecte : !kick <nomDuBatardAKick> [<kickDuration>]")
+        await client.send_message(message.channel,
+                                  "Syntaxe incorrecte : !kick <nomDuBatardAKick> [<kickDuration>]")
     except IncorrectArgumentTypeError:
-            await client.send_message(message.channel, "Le temps d'exclusion doit être un entier positif")
+        await client.send_message(message.channel, "Le temps d'exclusion doit être un entier positif")
 
 @client.event
 async def on_ready():
@@ -76,7 +95,8 @@ async def on_ready():
             role_index = get_role_index(channel.server, role_name)
             
             if role_index is None:
-                await client.create_role(channel.server, name=role_name, colour=discord.Colour.dark_red())
+                await client.create_role(channel.server, name=role_name,
+                                         colour=discord.Colour.dark_red())
 
             chan_perms = channel.overwrites_for(channel.server.roles[role_index])
             chan_perms.update(connect=False)
@@ -85,7 +105,8 @@ async def on_ready():
             role_index = get_role_index(channel.server, role_name)
             
             if role_index is None:
-                role = await client.create_role(channel.server, name=role_name, colour=discord.Colour.dark_red())
+                role = await client.create_role(channel.server, name=role_name,
+                                                colour=discord.Colour.dark_red())
             else:
                 role = channel.server.roles[role_index]
 
@@ -106,4 +127,4 @@ async def on_message(message):
     elif message.content.startswith('!close'):
         await client.close()
 
-client.run('MzI1NzU0MzA1NzQ1NTE4NTky.DCc2eA.gsKk6Ao9EidGc1x1s_mSFrwCubU')
+client.run(config_json["apiKey"])
