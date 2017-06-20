@@ -15,33 +15,37 @@ class IncorrectArgumentTypeError(Exception):
     pass
 
 
+class UnauthorizedError(Exception):
+    pass
+
+
 config_file = open('config.json', 'r+')
 config_json = json.load(config_file)
-
-print(json.dumps(config_json))
 
 client = discord.Client()
 
 def get_role_index(server, role_name):
     role_list = list(map(lambda x: str(x), server.roles))
 
-    print(role_name)
-    for role in role_list:
-        print(role)
-
     role_index = role_list.index(role_name) if role_name in role_list else None
     return role_index
 
 async def kick_member(message):
     try:
-        print(message.content)
+        is_authorized = False
+        for role_id in list(map(lambda x: x.id, message.author.roles)):
+            if role_id in config_json["moderatorRanks"]:
+                is_authorized = True
+                break
+
+        if not is_authorized:
+            raise UnauthorizedError("Not authorized (Kick command)")
+        
         args_match = re.match(r"!kick ([\w]+#[0-9]{4}|\"[\w ]+#[0-9]{4}\")( *[0-9]*)$",
                               message.content, re.UNICODE)
 
         if not args_match:
             raise BadCommandSyntaxError("Bad command syntax !")
-
-        print(str(args_match.groups()))
 
         if len(args_match.group(2)) == 0:
             kick_duration = 5
@@ -79,6 +83,8 @@ async def kick_member(message):
 
         role_index = get_role_index(message.channel.server, role_name)
         await client.remove_roles(member_to_kick, message.channel.server.roles[role_index])
+    except UnauthorizedError:
+        await client.send_message(message.channel, "Vous n'êtes pas autorisé à utiliser cette commande")
     except BadCommandSyntaxError:
         await client.send_message(message.channel,
                                   "Syntaxe incorrecte : !kick <nomDuBatardAKick> [<kickDuration>]")
@@ -88,8 +94,15 @@ async def kick_member(message):
 @client.event
 async def on_ready():
     channels = client.get_all_channels()
+    roles_list = {}
 
     for channel in channels:
+        try:
+            roles_list[channel.server.id]
+        except:
+            for role in channel.server.roles:
+                roles_list[role.id] = str(role)
+        
         if str(channel.type) == 'voice':
             role_name = 'Kicked from ' + str(channel)
             role_index = get_role_index(channel.server, role_name)
@@ -113,10 +126,8 @@ async def on_ready():
             chan_perms = channel.overwrites_for(role)
             chan_perms.update(send_messages=False, send_tts_messages=False)
 
-            for perm in iter(chan_perms):
-                print(str(perm))
-
     print("System primed !")
+    print(roles_list)
 
 @client.event
 async def on_message(message):
